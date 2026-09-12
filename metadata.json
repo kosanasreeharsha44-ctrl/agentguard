@@ -1,0 +1,8 @@
+{
+  "name": "Remix DevAgent Pro",
+  "description": "An autonomous AI verification and recovery system utilizing Google data search grounding, independent assertion verifiers, and automated replanning.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

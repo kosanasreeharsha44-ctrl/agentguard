@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgentGuard — Verification & Recovery for AI Agents</title>
+<style>
+  :root{
+    --bg:#ffffff;
+    --panel:#ffffff;
+    --panel-2:#fff6d8;      /* pale yellow tint */
+    --line:#f0dfa0;         /* soft yellow-gray border */
+    --text:#1c1c1c;
+    --muted:#948655;
+    --accent:#b8860b;       /* dark gold — verified / success text-safe */
+    --accent-bg:#ffd400;    /* bright yellow — backgrounds/buttons */
+    --signal:#c77800;       /* amber — active / in-progress text-safe */
+    --signal-bg:#ffb300;    /* bright amber-yellow — active glow */
+    --warn:#e07b00;         /* orange-amber — replan */
+    --fail:#d32f2f;         /* red — fail (semantic, kept distinct) */
+    --mono:"IBM Plex Mono","SFMono-Regular",Consolas,monospace;
+    --sans:"IBM Plex Sans","Segoe UI",sans-serif;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--sans);
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  a{color:inherit;}
+
+  .wrap{
+    max-width:1180px;
+    margin:0 auto;
+    padding:32px 24px 80px;
+  }
+
+  /* ---------- Header ---------- */
+  header{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:24px;
+    padding-bottom:28px;
+    border-bottom:2px solid var(--accent-bg);
+    margin-bottom:32px;
+    flex-wrap:wrap;
+  }
+  .brand{
+    display:flex;
+    align-items:center;
+    gap:12px;
+  }
+  .brand-mark{
+    width:38px;height:38px;
+    border-radius:9px;
+    background:linear-gradient(160deg,#fff3bf,#ffe066);
+    border:1px solid var(--line);
+    display:flex;align-items:center;justify-content:center;
+    position:relative;
+    flex-shrink:0;
+    box-shadow:0 2px 6px rgba(255,212,0,0.35);
+  }
+  .brand-mark svg{width:20px;height:20px;}
+  .brand h1{
+    font-size:19px;
+    margin:0;
+    letter-spacing:0.2px;
+    font-weight:600;
+  }
+  .brand p{
+    margin:2px 0 0;
+    font-size:13px;
+    color:var(--muted);
+    font-family:var(--mono);
+  }
+  .status-pill{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    padding:8px 14px;
+    border-radius:20px;
+    font-size:13px;
+    font-family:var(--mono);
+    color:var(--accent);
+    white-space:nowrap;
+  }
+  .status-pill .dot{
+    width:7px;height:7px;border-radius:50%;
+    background:var(--accent-bg);
+    box-shadow:0 0 0 3px rgba(255,212,0,0.35);
+  }
+
+  /* ---------- Goal bar ---------- */
+  .goal-bar{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:18px 20px;
+    display:flex;
+    gap:16px;
+    align-items:center;
+    margin-bottom:28px;
+    flex-wrap:wrap;
+    box-shadow:0 1px 3px rgba(0,0,0,0.04);
+  }
+  .goal-bar label{
+    font-size:12px;
+    color:var(--muted);
+    display:block;
+    margin-bottom:6px;
+  }
+  .goal-input-group{
+    flex:1;
+    min-width:260px;
+  }
+  .goal-bar input[type=text]{
+    width:100%;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    color:var(--text);
+    font-family:var(--mono);
+    font-size:14px;
+    padding:10px 12px;
+    border-radius:8px;
+    outline:none;
+  }
+  .goal-bar input[type=text]:focus{
+    border-color:var(--accent-bg);
+    box-shadow:0 0 0 3px rgba(255,212,0,0.25);
+  }
+  .run-btn{
+    background:var(--accent-bg);
+    color:#3a2a00;
+    border:none;
+    font-weight:700;
+    font-size:14px;
+    padding:12px 22px;
+    border-radius:8px;
+    cursor:pointer;
+    font-family:var(--sans);
+    transition:filter .15s ease, transform .1s ease;
+    flex-shrink:0;
+    box-shadow:0 2px 8px rgba(255,180,0,0.35);
+  }
+  .run-btn:hover{filter:brightness(1.06);}
+  .run-btn:active{transform:scale(0.98);}
+  .run-btn:disabled{
+    background:var(--line);
+    color:var(--muted);
+    cursor:not-allowed;
+    box-shadow:none;
+  }
+
+  /* ---------- Main grid ---------- */
+  .grid{
+    display:grid;
+    grid-template-columns:280px 1fr 320px;
+    gap:20px;
+    align-items:start;
+  }
+  @media (max-width:980px){
+    .grid{grid-template-columns:1fr;}
+  }
+
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:20px;
+    box-shadow:0 1px 3px rgba(0,0,0,0.04);
+  }
+  .panel h2{
+    font-size:12px;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    color:var(--muted);
+    margin:0 0 16px;
+    font-weight:600;
+  }
+
+  /* ---------- Pipeline (left) ---------- */
+  .pipeline-step{
+    display:flex;
+    gap:12px;
+    position:relative;
+    padding-bottom:26px;
+  }
+  .pipeline-step:last-child{padding-bottom:0;}
+  .pipeline-step .rail{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    flex-shrink:0;
+  }
+  .pipeline-step .node{
+    width:22px;height:22px;
+    border-radius:50%;
+    border:2px solid var(--line);
+    background:var(--panel-2);
+    display:flex;align-items:center;justify-content:center;
+    font-size:11px;
+    color:var(--muted);
+    transition:all .25s ease;
+    z-index:1;
+  }
+  .pipeline-step .stem{
+    width:2px;
+    flex:1;
+    background:var(--line);
+    margin-top:2px;
+    transition:background .25s ease;
+  }
+  .pipeline-step .label{
+    padding-top:1px;
+  }
+  .pipeline-step .label .name{
+    font-size:14px;
+    font-weight:500;
+    color:var(--muted);
+    transition:color .25s ease;
+  }
+  .pipeline-step .label .sub{
+    font-size:12px;
+    color:#b3a56a;
+    font-family:var(--mono);
+    margin-top:2px;
+  }
+
+  .pipeline-step.done .node{border-color:var(--accent-bg); background:#fff3bf; color:var(--accent);}
+  .pipeline-step.done .stem{background:var(--accent-bg);}
+  .pipeline-step.done .label .name{color:var(--text);}
+
+  .pipeline-step.active .node{border-color:var(--signal-bg); background:#fff0cf; color:var(--signal); animation:pulse 1.1s infinite;}
+  .pipeline-step.active .label .name{color:var(--text);}
+
+  .pipeline-step.fail .node{border-color:var(--fail); background:#fdecea; color:var(--fail);}
+  .pipeline-step.fail .stem{background:var(--fail);}
+  .pipeline-step.fail .label .name{color:var(--fail);}
+
+  .pipeline-step.warn .node{border-color:var(--warn); background:#fff0dc; color:var(--warn); animation:pulse 1.1s infinite;}
+  .pipeline-step.warn .stem{background:var(--warn);}
+  .pipeline-step.warn .label .name{color:var(--text);}
+
+  @keyframes pulse{
+    0%{box-shadow:0 0 0 0 rgba(255,179,0,0.4);}
+    70%{box-shadow:0 0 0 7px rgba(255,179,0,0);}
+    100%{box-shadow:0 0 0 0 rgba(255,179,0,0);}
+  }
+
+  /* ---------- Center: execution log ---------- */
+  .log-panel{
+    min-height:520px;
+    display:flex;
+    flex-direction:column;
+  }
+  .log-scroll{
+    flex:1;
+    overflow-y:auto;
+    max-height:460px;
+    padding-right:4px;
+  }
+  .log-line{
+    display:grid;
+    grid-template-columns:70px 90px 1fr;
+    gap:10px;
+    align-items:baseline;
+    font-family:var(--mono);
+    font-size:13px;
+    padding:9px 0;
+    border-bottom:1px solid var(--line);
+    animation:fadeIn .35s ease;
+  }
+  .log-line:last-child{border-bottom:none;}
+  @keyframes fadeIn{
+    from{opacity:0; transform:translateY(-3px);}
+    to{opacity:1; transform:translateY(0);}
+  }
+  .log-time{color:#b3a56a;}
+  .log-tag{
+    font-weight:700;
+    letter-spacing:0.03em;
+  }
+  .log-tag.OBSERVE{color:var(--muted);}
+  .log-tag.PLAN{color:var(--signal);}
+  .log-tag.EXECUTE{color:#a8790a;}
+  .log-tag.VERIFY{color:var(--accent);}
+  .log-tag.VERIFY.fail{color:var(--fail);}
+  .log-tag.REPLAN{color:var(--warn);}
+  .log-tag.COMPLETE{color:var(--accent);}
+  .log-msg{color:var(--text);}
+  .log-msg .dim{color:var(--muted);}
+
+  .empty-log{
+    color:var(--muted);
+    font-family:var(--mono);
+    font-size:13px;
+    padding:40px 0;
+    text-align:center;
+  }
+
+  /* ---------- Right: verifier + result ---------- */
+  .verifier-card{
+    margin-bottom:16px;
+  }
+  .verifier-card .field{
+    display:flex;
+    justify-content:space-between;
+    font-size:13px;
+    padding:7px 0;
+    border-bottom:1px solid var(--line);
+  }
+  .verifier-card .field:last-child{border-bottom:none;}
+  .verifier-card .field .k{color:var(--muted);}
+  .verifier-card .field .v{font-family:var(--mono);}
+  .v.pass{color:var(--accent);}
+  .v.fail{color:var(--fail);}
+
+  .result-box{
+    background:var(--panel-2);
+    border:1px solid var(--accent-bg);
+    border-radius:10px;
+    padding:16px;
+    text-align:center;
+  }
+  .result-box .rlabel{
+    font-size:12px;
+    color:var(--muted);
+    margin-bottom:6px;
+  }
+  .result-box .rvalue{
+    font-size:26px;
+    font-weight:700;
+    font-family:var(--mono);
+    color:var(--accent);
+  }
+  .result-box .rvalue.pending{
+    color:var(--muted);
+    font-size:15px;
+  }
+
+  .badge-row{
+    display:flex;
+    gap:8px;
+    margin-top:14px;
+    flex-wrap:wrap;
+  }
+  .badge{
+    font-size:11px;
+    font-family:var(--mono);
+    color:var(--accent);
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    padding:4px 9px;
+    border-radius:6px;
+  }
+
+  footer{
+    margin-top:36px;
+    padding-top:20px;
+    border-top:1px solid var(--line);
+    display:flex;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:12px;
+    font-size:12px;
+    color:var(--muted);
+    font-family:var(--mono);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2L4 5V11C4 16 7.5 20.5 12 22C16.5 20.5 20 16 20 11V5L12 2Z" stroke="#b8860b" stroke-width="1.6" stroke-linejoin="round"/>
+          <path d="M9 12L11 14L15.5 9.5" stroke="#b8860b" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div>
+        <h1>AgentGuard</h1>
+        <p>verify every action · recover from every failure</p>
+      </div>
+    </div>
+    <div class="status-pill"><span class="dot"></span> agent runtime online</div>
+  </header>
+
+  <div class="goal-bar">
+    <div class="goal-input-group">
+      <label for="goalInput">Goal</label>
+      <input id="goalInput" type="text" value="Calculate a 17% discount on ₹2450 and give the final price. Verify the arithmetic before returning the answer." />
+    </div>
+    <button class="run-btn" id="runBtn" onclick="runDemo()">Run agent</button>
+  </div>
+
+  <div class="grid">
+
+    <!-- LEFT: pipeline -->
+    <div class="panel">
+      <h2>Pipeline</h2>
+      <div id="pipeline"></div>
+    </div>
+
+    <!-- CENTER: log -->
+    <div class="panel log-panel">
+      <h2>Execution log</h2>
+      <div class="log-scroll" id="logScroll">
+        <div class="empty-log" id="emptyLog">No run yet — press "Run agent" to start.</div>
+      </div>
+    </div>
+
+    <!-- RIGHT: verifier + result -->
+    <div>
+      <div class="panel verifier-card">
+        <h2>Verifier output</h2>
+        <div class="field"><span class="k">status</span><span class="v" id="vStatus">—</span></div>
+        <div class="field"><span class="k">reason</span><span class="v" id="vReason" style="text-align:right; max-width:170px;">—</span></div>
+        <div class="field"><span class="k">confidence</span><span class="v" id="vConf">—</span></div>
+        <div class="field"><span class="k">attempt</span><span class="v" id="vAttempt">—</span></div>
+      </div>
+
+      <div class="panel">
+        <h2>Result</h2>
+        <div class="result-box">
+          <div class="rlabel">final price</div>
+          <div class="rvalue pending" id="resultValue">awaiting run</div>
+        </div>
+        <div class="badge-row">
+          <span class="badge">planner</span>
+          <span class="badge">executor</span>
+          <span class="badge">verifier</span>
+          <span class="badge">replanner</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <footer>
+    <span>agentguard · tech zephyr 4.0</span>
+    <span id="runClock">idle</span>
+  </footer>
+
+</div>
+
+<script>
+const steps = [
+  {key:"observe",  name:"Observe",  sub:"understand goal"},
+  {key:"plan",     name:"Plan",     sub:"break into steps"},
+  {key:"execute1", name:"Execute",  sub:"calculator tool"},
+  {key:"verify1",  name:"Verify",   sub:"independent check"},
+  {key:"replan",   name:"Replan",   sub:"correct the approach"},
+  {key:"execute2", name:"Execute",  sub:"retry calculation"},
+  {key:"verify2",  name:"Verify",   sub:"independent check"},
+  {key:"complete", name:"Complete", sub:"return verified result"},
+];
+
+const pipelineEl = document.getElementById("pipeline");
+function renderPipeline(){
+  pipelineEl.innerHTML = steps.map((s,i) => `
+    <div class="pipeline-step" id="step-${s.key}">
+      <div class="rail">
+        <div class="node" id="node-${s.key}">${i+1}</div>
+        ${i < steps.length-1 ? '<div class="stem" id="stem-'+s.key+'"></div>' : ''}
+      </div>
+      <div class="label">
+        <div class="name">${s.name}</div>
+        <div class="sub">${s.sub}</div>
+      </div>
+    </div>
+  `).join("");
+}
+renderPipeline();
+
+function setStepState(key, state){
+  const el = document.getElementById("step-"+key);
+  el.classList.remove("done","active","fail","warn");
+  if(state) el.classList.add(state);
+}
+
+const logScroll = document.getElementById("logScroll");
+const emptyLog = document.getElementById("emptyLog");
+
+function logLine(time, tag, tagClass, html){
+  if(emptyLog) emptyLog.remove();
+  const row = document.createElement("div");
+  row.className = "log-line";
+  row.innerHTML = `<span class="log-time">${time}</span><span class="log-tag ${tagClass||tag}">${tag}</span><span class="log-msg">${html}</span>`;
+  logScroll.appendChild(row);
+  logScroll.scrollTop = logScroll.scrollHeight;
+}
+
+function nowStamp(){
+  const d = new Date();
+  return d.toTimeString().slice(0,8);
+}
+
+function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+const runBtn = document.getElementById("runBtn");
+const clock = document.getElementById("runClock");
+const resultValue = document.getElementById("resultValue");
+const vStatus = document.getElementById("vStatus");
+const vReason = document.getElementById("vReason");
+const vConf = document.getElementById("vConf");
+const vAttempt = document.getElementById("vAttempt");
+
+async function runDemo(){
+  runBtn.disabled = true;
+  runBtn.textContent = "Running…";
+  clock.textContent = "run in progress";
+  logScroll.innerHTML = "";
+  steps.forEach(s => setStepState(s.key, null));
+  resultValue.className = "rvalue pending";
+  resultValue.textContent = "awaiting run";
+  vStatus.textContent = "—"; vStatus.className = "v";
+  vReason.textContent = "—";
+  vConf.textContent = "—";
+  vAttempt.textContent = "—";
+
+  // OBSERVE
+  setStepState("observe","active");
+  await wait(500);
+  logLine(nowStamp(),"OBSERVE","OBSERVE","Goal received: <span class='dim'>17% discount on ₹2450</span>");
+  setStepState("observe","done");
+
+  // PLAN
+  setStepState("plan","active");
+  await wait(600);
+  logLine(nowStamp(),"PLAN","PLAN","3 execution steps created by Planner Agent");
+  setStepState("plan","done");
+
+  // EXECUTE 1 (intentional wrong result, per the doc's demo)
+  setStepState("execute1","active");
+  await wait(650);
+  logLine(nowStamp(),"EXECUTE","EXECUTE","Executor called calculator tool → result <span class='dim'>₹2085.75</span>");
+  setStepState("execute1","done");
+
+  // VERIFY 1 — fails
+  setStepState("verify1","active");
+  await wait(700);
+  vStatus.textContent = "FAILED"; vStatus.className = "v fail";
+  vReason.textContent = "Discount % misapplied";
+  vConf.textContent = "0.97";
+  vAttempt.textContent = "1 of 2";
+  logLine(nowStamp(),"VERIFY","VERIFY fail","Result failed verification — discount calculation incorrect");
+  setStepState("verify1","fail");
+
+  // REPLAN
+  setStepState("replan","warn");
+  await wait(700);
+  logLine(nowStamp(),"REPLAN","REPLAN","Replanner generated corrected calculation strategy");
+  setStepState("replan","done");
+
+  // EXECUTE 2
+  setStepState("execute2","active");
+  await wait(650);
+  logLine(nowStamp(),"EXECUTE","EXECUTE","Executor called calculator tool again → result <span class='dim'>₹2033.50</span>");
+  setStepState("execute2","done");
+
+  // VERIFY 2 — passes
+  setStepState("verify2","active");
+  await wait(700);
+  vStatus.textContent = "PASSED"; vStatus.className = "v pass";
+  vReason.textContent = "Calculation independently verified";
+  vConf.textContent = "0.99";
+  vAttempt.textContent = "2 of 2";
+  logLine(nowStamp(),"VERIFY","VERIFY","Result verified successfully");
+  setStepState("verify2","done");
+
+  // COMPLETE
+  setStepState("complete","active");
+  await wait(500);
+  logLine(nowStamp(),"COMPLETE","COMPLETE","Final answer generated — <span class='dim'>only a verified result reaches the user</span>");
+  setStepState("complete","done");
+
+  resultValue.className = "rvalue";
+  resultValue.textContent = "₹2033.50";
+
+  clock.textContent = "run complete";
+  runBtn.disabled = false;
+  runBtn.textContent = "Run agent";
+}
+</script>
+</body>
+</html>
